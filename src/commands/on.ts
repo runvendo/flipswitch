@@ -3,13 +3,15 @@ import { setEnvVars } from "../lib/claude-settings.js";
 import { OPENROUTER_BASE_URL, MODEL_ENV_VARS, type ModelSlot } from "../types.js";
 import * as log from "../lib/logger.js";
 
-export async function onCommand(): Promise<void> {
+/**
+ * Core logic to enable routing. Used by `on`, `login`, and `key` commands.
+ * Does not exit on error — returns false if no key is configured.
+ */
+export function enableRouting(): boolean {
   const config = readConfig();
 
   if (!config.apiKey) {
-    log.error("No API key configured.");
-    log.info("Run `flipswitch login` or `flipswitch key <openrouter-key>` first.");
-    process.exit(1);
+    return false;
   }
 
   // Build the env vars to set
@@ -41,6 +43,20 @@ export async function onCommand(): Promise<void> {
   config.enabled = true;
   config.managedEnvVars = managedKeys;
   writeConfig(config);
+
+  return true;
+}
+
+export async function onCommand(): Promise<void> {
+  const config = readConfig();
+
+  if (!config.apiKey) {
+    log.error("No API key configured.");
+    log.info("Run `flipswitch` to get started with Vendo, or `flipswitch key <key>` to use your own OpenRouter key.");
+    process.exit(1);
+  }
+
+  enableRouting();
 
   log.header("Flipswitch ON");
   log.success("Claude Code will now route through OpenRouter.");

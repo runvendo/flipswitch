@@ -1,5 +1,6 @@
 import { readConfig, writeConfig } from "../lib/config.js";
 import { performLogin } from "../lib/auth.js";
+import { enableRouting } from "./on.js";
 import * as log from "../lib/logger.js";
 
 export async function loginCommand(): Promise<void> {
@@ -21,6 +22,10 @@ export async function loginCommand(): Promise<void> {
   writeConfig(config);
 
   log.success("Logged in via Vendo.");
-  log.success(`API key stored (${log.maskKey(result.apiKey)})`);
-  log.info('Run `flipswitch on` to start routing Claude Code through OpenRouter.');
+
+  // Auto-enable routing — no second command needed
+  enableRouting();
+
+  console.log();
+  log.info("Restart any running Claude Code sessions and you're all set.");
 }
