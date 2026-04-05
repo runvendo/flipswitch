@@ -1,0 +1,50 @@
+{
+  "name": "flipswitch",
+  "version": "0.1.0",
+  "description": "Route Claude Code through OpenRouter with one command",
+  "type": "module",
+  "bin": {
+    "flipswitch": "./bin/flipswitch"
+  },
+  "files": [
+    "bin",
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "openrouter",
+    "ai",
+    "proxy",
+    "cli"
+  ],
+  "author": "Vendo",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vendodev/flipswitch"
+  },
+  "homepage": "https://github.com/vendodev/flipswitch#readme",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^5.4.1",
+    "commander": "^13.1.0",
+    "open": "^10.1.0",
+    "ora": "^8.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "tsup": "^8.4.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
