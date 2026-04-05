@@ -18,18 +18,11 @@ program
   .description("Route Claude Code through OpenRouter with one command")
   .version("0.1.0")
   .action(async () => {
-    // Default action: if no subcommand is given, guide the user
     const config = readConfig();
 
-    if (config.enabled && config.apiKey) {
+    if (config.apiKey) {
       // Already set up — show status
       await statusCommand();
-      return;
-    }
-
-    if (config.apiKey && !config.enabled) {
-      // Has a key but not enabled — just turn it on
-      await onCommand();
       return;
     }
 
@@ -56,22 +49,26 @@ program
 program
   .command("on")
   .description("Enable OpenRouter routing for Claude Code")
+  .option("--local", "Apply to current project only")
   .action(onCommand);
 
 program
   .command("off")
   .description("Disable routing, revert to direct Anthropic")
+  .option("--local", "Apply to current project only")
   .action(offCommand);
 
 program
   .command("status")
   .description("Show current flipswitch configuration")
+  .option("--local", "Show local project configuration")
   .action(statusCommand);
 
 program
   .command("model <slot> [model-id]")
   .description("Remap a model slot (sonnet, opus, haiku) to an OpenRouter model")
   .option("--reset", "Remove the custom mapping for this slot")
+  .option("--local", "Apply to current project only")
   .action(modelCommand);
 
 program

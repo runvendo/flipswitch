@@ -1,6 +1,7 @@
 export interface FlipswitchConfig {
   version: 1;
   authMode: "vendo" | "direct" | null;
+  /** OpenRouter API key — provisioned by Vendo or provided directly by user. */
   apiKey: string | null;
   vendoUserId: string | null;
   enabled: boolean;

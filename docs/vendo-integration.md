@@ -1,171 +1,184 @@
 # Flipswitch Integration Spec for Vendo
 
-> **What is this?** This document is a complete implementation brief for the Vendo backend (https://vendo.run) to support [Flipswitch](https://github.com/vendo-dev/flipswitch) — a CLI tool that lets users route Claude Code through OpenRouter.
+> **What is this?** A complete implementation brief for the Vendo backend (https://vendo.run) to support [Flipswitch](https://github.com/vendodev/flipswitch) — a CLI that lets users route Claude Code through OpenRouter.
 >
-> **What does Vendo need to do?** Expose two API endpoints and a database table so that `flipswitch login` can authenticate users via Vendo's existing Supabase auth and provision them an OpenRouter API key billed to Vendo's account.
+> **What does Vendo need to build?**
+> 1. **Auth endpoints** so `flipswitch login` can authenticate users and provision an OpenRouter API key
+> 2. **OpenRouter management key provisioning** — Vendo creates per-user keys on its own OpenRouter account with credit limits
+> 3. **Credit / billing system** — users buy credits on Vendo, Vendo sets OpenRouter key limits accordingly
 
 ---
 
-## How Flipswitch Works (Context)
+## Architecture
 
-Flipswitch is a CLI tool (`npm install -g flipswitch`) that configures Claude Code to route API calls through OpenRouter instead of directly to Anthropic. It does this by writing environment variables to `~/.claude/settings.json`:
-
-```json
-{
-  "env": {
-    "ANTHROPIC_BASE_URL": "https://openrouter.ai/api",
-    "ANTHROPIC_AUTH_TOKEN": "sk-or-v1-...",
-    "ANTHROPIC_API_KEY": ""
-  }
-}
+```
+Claude Code  -->  openrouter.ai/api  -->  Model Provider
+                       |
+                  Uses an OpenRouter API key
+                  provisioned by Vendo (on Vendo's account)
+                  with a credit limit matching
+                  the user's Vendo balance
 ```
 
-Users have two auth modes:
-1. **Direct key** (`flipswitch key <key>`) — user provides their own OpenRouter key
-2. **Vendo login** (`flipswitch login`) — user authenticates via Vendo, gets a managed key billed to Vendo's OpenRouter account
-
-This document covers option 2 — the Vendo-managed flow.
+**Key points:**
+- Users get a real OpenRouter API key — but it lives on **Vendo's** OpenRouter account
+- `ANTHROPIC_BASE_URL` = `https://openrouter.ai/api` (same for all users)
+- `ANTHROPIC_AUTH_TOKEN` = an OpenRouter key provisioned by Vendo
+- **No proxy server needed** — requests go directly from Claude Code to OpenRouter
+- Vendo controls the key's credit limit → user can't spend more than they've paid for
+- Users who bring their own OpenRouter key (`flipswitch key`) bypass Vendo entirely
+- If a user logs in on multiple machines, Vendo returns the **same key** (one key per user)
 
 ---
 
-## Architecture Overview
+## Sequence Diagram
 
 ```
-User                    Flipswitch CLI             Vendo Backend            OpenRouter
- |                           |                          |                       |
- |  flipswitch login         |                          |                       |
- |-------------------------->|                          |                       |
- |                           | 1. Generate PKCE pair    |                       |
- |                           | 2. Start localhost:PORT  |                       |
- |                           | 3. Open browser -------->|                       |
- |                           |                          |                       |
- |  (browser) Log in via     |                          |                       |
- |  Supabase auth            |                          |                       |
- |-------------------------->|                          |                       |
- |                           |                          | 4. Auth success       |
- |                           |                          | 5. Generate auth code |
- |                           |   6. Redirect to         |                       |
- |                           |      localhost/callback   |                       |
- |                           |<-------------------------|                       |
- |                           |                          |                       |
- |                           | 7. POST /exchange        |                       |
- |                           |------------------------->|                       |
- |                           |                          | 8. Validate PKCE      |
- |                           |                          | 9. Create OR key ---->|
- |                           |                          |<---- { key: sk-or }   |
- |                           |<-- { api_key, user_id }  |                       |
- |                           |                          |                       |
- |  "Login successful!"      |                          |                       |
- |<--------------------------|                          |                       |
+User                   Flipswitch CLI            Vendo Backend           OpenRouter
+ |                          |                         |                      |
+ |  flipswitch login        |                         |                      |
+ |------------------------->|                         |                      |
+ |                          | 1. Generate PKCE pair   |                      |
+ |                          | 2. Start localhost:PORT |                      |
+ |                          | 3. Open browser ------->|                      |
+ |                          |                         |                      |
+ |  (browser) Log in via    |                         |                      |
+ |  Supabase auth           |                         |                      |
+ |------------------------->|                         |                      |
+ |                          |                         | 4. Auth success      |
+ |                          |                         | 5. Generate auth code|
+ |                          |   6. Redirect to        |                      |
+ |                          |      localhost/callback  |                      |
+ |                          |<------------------------|                      |
+ |                          |                         |                      |
+ |                          | 7. POST /exchange       |                      |
+ |                          |------------------------>|                      |
+ |                          |                         | 8. Validate PKCE     |
+ |                          |                         | 9. Check if user     |
+ |                          |                         |    already has a key |
+ |                          |                         | 10. If not, create   |
+ |                          |                         |     OR mgmt key ---->|
+ |                          |                         |<-- key created       |
+ |                          |<-- { api_key, user_id } |                      |
+ |                          |                         |                      |
+ |  "Logged in via Vendo."  |                         |                      |
+ |<-------------------------|                         |                      |
+ |                          |                         |                      |
+ |  flipswitch on           |                         |                      |
+ |------------------------->|                         |                      |
+ |                          | Writes to settings.json:|                      |
+ |                          | ANTHROPIC_BASE_URL =    |                      |
+ |                          |   openrouter.ai/api     |                      |
+ |                          | ANTHROPIC_AUTH_TOKEN =  |                      |
+ |                          |   sk-or-v1-...          |                      |
+ |                          |                         |                      |
+ |  (Claude Code session)   |                         |                      |
+ |  POST /v1/messages  -----|----(direct)-------------|--------------------->|
+ |  <--- response ----------|----(direct)-------------|<--------------------|
+ |                          |                         |                      |
+ |                          |                         | (Vendo queries OR    |
+ |                          |                         |  usage API on cron   |
+ |                          |                         |  to track spend)     |
 ```
 
 ---
 
 ## Prerequisites (One-Time Setup)
 
-### 1. Create an OpenRouter Management API Key
+### 1. Create an OpenRouter Account for Vendo
 
-1. Go to https://openrouter.ai/settings/keys
-2. Create a new **Management API key** (this is a special key type that can only create/list/delete other keys — it cannot make model completions)
-3. Store it securely in your Supabase environment as `OPENROUTER_MANAGEMENT_KEY`
+1. Go to https://openrouter.ai
+2. Create an account for Vendo (this is Vendo's billing account)
+3. Add a payment method at https://openrouter.ai/settings/credits
+4. Generate a **management API key** at https://openrouter.ai/settings/keys — this key is used to provision per-user keys
 
-This key is used server-side only. It never leaves the Vendo backend.
+### 2. Store the Management Key
 
-### 2. Fund the OpenRouter Account
-
-The managed keys that Vendo provisions will bill to Vendo's OpenRouter account. Ensure the account has credits or a payment method on file at https://openrouter.ai/settings/credits.
-
----
-
-## Database Schema
-
-### Table: `flipswitch_keys`
-
-Tracks the OpenRouter API keys provisioned for each user.
-
-```sql
-create table public.flipswitch_keys (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  openrouter_key_hash text not null,
-  openrouter_key_name text not null,
-  spending_limit numeric default 50,
-  limit_reset text default 'monthly',
-  created_at timestamptz not null default now(),
-  revoked_at timestamptz,
-  constraint flipswitch_keys_user_id_unique unique (user_id)
-);
-
--- RLS: only the service role can read/write this table
-alter table public.flipswitch_keys enable row level security;
-
--- Index for lookup by user
-create index idx_flipswitch_keys_user_id on public.flipswitch_keys(user_id);
-```
-
-### Table: `flipswitch_auth_codes`
-
-Temporary auth codes for the PKCE exchange (60-second TTL).
-
-```sql
-create table public.flipswitch_auth_codes (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id) on delete cascade,
-  code text not null unique,
-  code_challenge text not null,
-  callback_url text not null,
-  created_at timestamptz not null default now(),
-  used_at timestamptz
-);
-
--- Auto-expire old codes (run via pg_cron or Supabase Edge Function cron)
--- delete from public.flipswitch_auth_codes where created_at < now() - interval '5 minutes';
-```
+Store as `OPENROUTER_MANAGEMENT_KEY` in your environment. This key never leaves the Vendo server.
 
 ---
 
-## Endpoints to Build
+## What to Build
 
-### Endpoint 1: Auth Page
+### 1. Key Provisioning Service
 
-**`GET /auth/flipswitch`**
+When a user completes `flipswitch login`, Vendo provisions an OpenRouter API key on Vendo's account.
 
-This is a web page (not an API endpoint) that the CLI opens in the user's browser.
+**Logic:**
+1. Check if the user already has a key in `flipswitch_keys` table
+2. If yes → return the existing key (one key per user, works across devices)
+3. If no → create a new key via OpenRouter's management API
+
+**Creating a key via OpenRouter:**
+
+```typescript
+// POST https://openrouter.ai/api/v1/keys
+const res = await fetch("https://openrouter.ai/api/v1/keys", {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${OPENROUTER_MANAGEMENT_KEY}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    name: `flipswitch-${userId}`,
+    label: `Flipswitch user ${userEmail}`,
+    limit: userCreditBalance,  // USD — OpenRouter enforces this
+  }),
+});
+
+const { key, data } = await res.json();
+// key = "sk-or-v1-..." (the actual API key)
+// data.id = key ID (for updating limit / revoking later)
+```
+
+**Updating the credit limit** (when user buys more credits):
+
+```typescript
+// PATCH https://openrouter.ai/api/v1/keys/{keyId}
+await fetch(`https://openrouter.ai/api/v1/keys/${keyId}`, {
+  method: "PATCH",
+  headers: {
+    Authorization: `Bearer ${OPENROUTER_MANAGEMENT_KEY}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    limit: newCreditBalance,
+  }),
+});
+```
+
+**Revoking a key** (on logout or account suspension):
+
+```typescript
+// DELETE https://openrouter.ai/api/v1/keys/{keyId}
+await fetch(`https://openrouter.ai/api/v1/keys/${keyId}`, {
+  method: "DELETE",
+  headers: {
+    Authorization: `Bearer ${OPENROUTER_MANAGEMENT_KEY}`,
+  },
+});
+```
+
+### 2. Auth Endpoints
+
+#### Auth Page: `GET /auth/flipswitch`
+
+A web page the CLI opens in the user's browser.
 
 **Query parameters:**
 | Param | Required | Description |
 |---|---|---|
-| `callback_url` | Yes | The localhost URL to redirect to after auth (e.g., `http://localhost:43210/callback`) |
+| `callback_url` | Yes | Localhost URL to redirect to (e.g., `http://localhost:43210/callback`) |
 | `code_challenge` | Yes | Base64url-encoded SHA-256 hash of the PKCE code verifier |
 | `code_challenge_method` | Yes | Always `S256` |
 
 **Flow:**
-1. If the user is **not logged in** → show your existing Supabase login UI (email/password, OAuth, magic link, etc.)
-2. If the user **is logged in** (has a Supabase session) → proceed immediately
-3. Generate a random auth code (e.g., 32 random bytes, hex-encoded)
-4. Store in `flipswitch_auth_codes`:
-   ```sql
-   insert into flipswitch_auth_codes (user_id, code, code_challenge, callback_url)
-   values ($user_id, $code, $code_challenge, $callback_url);
-   ```
-5. Redirect to: `{callback_url}?code={code}`
+1. If not logged in → show Supabase login UI
+2. If logged in → generate a random auth code (32 bytes, hex)
+3. Store in `flipswitch_auth_codes` table
+4. Redirect to: `{callback_url}?code={code}`
 
-**Implementation options:**
-- **Next.js page** at `app/auth/flipswitch/page.tsx` that checks session, shows login if needed, generates code, redirects
-- **Supabase Edge Function** if you prefer serverless
-
-**Example redirect:**
-```
-http://localhost:43210/callback?code=a1b2c3d4e5f6...
-```
-
----
-
-### Endpoint 2: Token Exchange
-
-**`POST /api/auth/flipswitch/exchange`**
-
-Called by the CLI after receiving the auth code. Returns a managed OpenRouter API key.
+#### Token Exchange: `POST /api/auth/flipswitch/exchange`
 
 **Request:**
 ```json
@@ -183,141 +196,159 @@ Called by the CLI after receiving the auth code. Returns a managed OpenRouter AP
 }
 ```
 
-**Error responses:**
-- `400` — Missing code or code_verifier
-- `401` — Invalid or expired auth code
-- `401` — PKCE validation failed
-- `500` — OpenRouter API error
-
 **Implementation:**
+1. Look up auth code (60s TTL, not yet used)
+2. Validate PKCE: `base64url(SHA256(code_verifier)) === code_challenge`
+3. Mark code as used
+4. Check `flipswitch_keys` — if user already has a key, return it
+5. If not, provision a new OpenRouter management key with `limit = user's credit balance`
+6. Store in `flipswitch_keys` table
+7. Return the OpenRouter API key and user ID
 
-```typescript
-// Pseudocode for the exchange endpoint
+#### Key Revocation: `POST /api/auth/flipswitch/revoke`
 
-export async function POST(req: Request) {
-  const { code, code_verifier } = await req.json();
-
-  // 1. Look up the auth code
-  const authCode = await db.flipswitch_auth_codes.findOne({
-    code,
-    used_at: null,
-    created_at: { gt: new Date(Date.now() - 60_000) }, // 60s TTL
-  });
-
-  if (!authCode) {
-    return Response.json({ error: "Invalid or expired code" }, { status: 401 });
-  }
-
-  // 2. Validate PKCE
-  const expectedChallenge = base64url(sha256(code_verifier));
-  if (expectedChallenge !== authCode.code_challenge) {
-    return Response.json({ error: "PKCE validation failed" }, { status: 401 });
-  }
-
-  // 3. Mark code as used
-  await db.flipswitch_auth_codes.update(authCode.id, { used_at: new Date() });
-
-  // 4. Check if user already has an active key
-  const existingKey = await db.flipswitch_keys.findOne({
-    user_id: authCode.user_id,
-    revoked_at: null,
-  });
-
-  // 5. If existing key, revoke it on OpenRouter
-  if (existingKey) {
-    await fetch(`https://openrouter.ai/api/v1/keys/${existingKey.openrouter_key_hash}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${OPENROUTER_MANAGEMENT_KEY}` },
-    });
-    await db.flipswitch_keys.update(existingKey.id, { revoked_at: new Date() });
-  }
-
-  // 6. Create a new OpenRouter API key via Provisioning API
-  const orResponse = await fetch("https://openrouter.ai/api/v1/keys", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENROUTER_MANAGEMENT_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      name: `flipswitch-${authCode.user_id}`,
-      limit: 50,             // $50 spending limit
-      limit_reset: "monthly", // resets monthly at midnight UTC
-    }),
-  });
-
-  if (!orResponse.ok) {
-    return Response.json({ error: "Failed to create API key" }, { status: 500 });
-  }
-
-  const orData = await orResponse.json();
-  // orData.key = "sk-or-v1-..." (only shown once!)
-  // orData.data.hash = "..." (for future management)
-
-  // 7. Store the key hash (NOT the key itself — it's only shown once)
-  await db.flipswitch_keys.create({
-    user_id: authCode.user_id,
-    openrouter_key_hash: orData.data.hash,
-    openrouter_key_name: `flipswitch-${authCode.user_id}`,
-    spending_limit: 50,
-    limit_reset: "monthly",
-  });
-
-  // 8. Return the key to the CLI
-  return Response.json({
-    api_key: orData.key,
-    user_id: authCode.user_id,
-  });
-}
-```
-
----
-
-### Endpoint 3: Key Revocation
-
-**`POST /api/auth/flipswitch/revoke`**
-
-Called by `flipswitch logout`. Revokes the user's managed OpenRouter key.
+Called by `flipswitch logout`.
 
 **Request:**
 ```json
-{
-  "user_id": "550e8400-e29b-41d4-a716-446655440000"
-}
-```
-
-**Response (200):**
-```json
-{ "ok": true }
+{ "user_id": "550e8400-e29b-41d4-a716-446655440000" }
 ```
 
 **Implementation:**
-1. Look up the user's active key in `flipswitch_keys`
-2. Call `DELETE https://openrouter.ai/api/v1/keys/{hash}` with the management key
-3. Set `revoked_at = now()` in the database
-4. Return success (idempotent — return 200 even if no key found)
+1. Look up the user's key in `flipswitch_keys`
+2. Revoke (DELETE) the key on OpenRouter via management API
+3. Mark as revoked in `flipswitch_keys`
 
-**Security note:** This endpoint should be authenticated. Either:
-- Require the Supabase session token in the `Authorization` header, OR
-- Validate the `user_id` against a signed token
+Should be authenticated (require Supabase token or similar).
 
 ---
 
-## Environment Variables Needed
+## Database Schema
 
-Add these to your Vendo deployment environment:
+### Table: `flipswitch_keys`
+
+```sql
+create table public.flipswitch_keys (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  openrouter_key_id text not null,          -- OpenRouter's key ID (for PATCH/DELETE)
+  openrouter_api_key text not null,         -- The actual sk-or-v1-... key
+  credit_limit numeric default 0,           -- Current USD limit set on OpenRouter
+  created_at timestamptz not null default now(),
+  revoked_at timestamptz
+);
+
+alter table public.flipswitch_keys enable row level security;
+create unique index idx_flipswitch_keys_user on public.flipswitch_keys(user_id) where revoked_at is null;
+```
+
+### Table: `flipswitch_auth_codes`
+
+```sql
+create table public.flipswitch_auth_codes (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  code text not null unique,
+  code_challenge text not null,
+  callback_url text not null,
+  created_at timestamptz not null default now(),
+  used_at timestamptz
+);
+
+-- Auto-expire old codes (pg_cron or Edge Function cron):
+-- delete from flipswitch_auth_codes where created_at < now() - interval '5 minutes';
+```
+
+### Table: `flipswitch_credits`
+
+```sql
+create table public.flipswitch_credits (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  amount_usd numeric not null,              -- positive = purchase, negative = adjustment
+  source text not null,                     -- 'stripe', 'manual', 'refund', etc.
+  stripe_payment_id text,                   -- Stripe reference if applicable
+  created_at timestamptz not null default now()
+);
+
+alter table public.flipswitch_credits enable row level security;
+
+-- Helper view for current balance
+create or replace view public.flipswitch_balances as
+select
+  user_id,
+  coalesce(sum(amount_usd), 0) as balance_usd
+from public.flipswitch_credits
+group by user_id;
+```
+
+---
+
+## Credit Limit Sync
+
+Vendo needs to keep each user's OpenRouter key limit in sync with their Vendo credit balance.
+
+**When to update the limit:**
+1. **User buys credits** (Stripe webhook) → PATCH the OR key limit to new balance
+2. **User gets a refund** → PATCH the OR key limit down
+3. **Periodic sync** (cron every 5-10 min) → query OR usage per key, compare against credits
+
+**Querying usage from OpenRouter:**
+
+```typescript
+// GET https://openrouter.ai/api/v1/keys/{keyId}
+const res = await fetch(`https://openrouter.ai/api/v1/keys/${keyId}`, {
+  headers: { Authorization: `Bearer ${OPENROUTER_MANAGEMENT_KEY}` },
+});
+const { data } = await res.json();
+// data.usage = total USD spent on this key
+// data.limit = current limit
+```
+
+**Credit limit formula:**
+```
+OR key limit = user's Vendo credit balance / (1 + margin_percent)
+```
+
+Example with 20% margin:
+- User buys $20 of credits on Vendo
+- OR key limit set to $20 / 1.20 = $16.67
+- User spends $16.67 on OpenRouter
+- Vendo paid $16.67, collected $20, keeps $3.33
+
+---
+
+## Environment Variables
 
 | Variable | Description |
 |---|---|
-| `OPENROUTER_MANAGEMENT_KEY` | Management API key from OpenRouter (for creating/revoking user keys) |
-| `FLIPSWITCH_SPENDING_LIMIT` | Default per-user spending limit in USD (default: 50) |
-| `FLIPSWITCH_LIMIT_RESET` | Reset frequency: `daily`, `weekly`, `monthly` (default: `monthly`) |
+| `OPENROUTER_MANAGEMENT_KEY` | Vendo's OpenRouter management key (for provisioning per-user keys) |
+| `VENDO_MARGIN_PERCENT` | Margin on top of OpenRouter costs (e.g., `20` for 20%). Default: 20 |
+| `FLIPSWITCH_DEFAULT_CREDIT` | Default credit for new users in USD (e.g., `0` — require purchase). Default: 0 |
+
+---
+
+## Billing / Margin Model
+
+1. User buys $20 of credits on Vendo (via Stripe)
+2. Vendo sets the OR key limit to `$20 / 1.20 = $16.67` (with 20% margin)
+3. User makes API calls → OpenRouter deducts from the key's limit
+4. When the limit runs out, OpenRouter rejects requests automatically (402 error)
+5. User buys more credits → Vendo increases the OR key limit
+
+**Vendo's revenue:**
+- Vendo collects $20 from the user
+- Vendo pays OpenRouter up to $16.67
+- Vendo keeps $3.33 (20% margin)
+
+**Safety:**
+- OpenRouter enforces the credit limit — Vendo cannot be overcharged
+- If a user doesn't pay, their key limit stays at $0 and nothing works
+- Vendo can revoke keys instantly for any reason
 
 ---
 
 ## PKCE Reference
-
-Flipswitch uses PKCE (Proof Key for Code Exchange) to secure the auth flow. Here's how to validate it:
 
 ```typescript
 import { createHash } from "node:crypto";
@@ -334,28 +365,25 @@ function validatePKCE(codeVerifier: string, codeChallenge: string): boolean {
 }
 ```
 
-The CLI generates a random `code_verifier`, computes `code_challenge = base64url(SHA256(code_verifier))`, and sends only the challenge to the auth page. During exchange, the CLI sends the verifier, and the server recomputes the challenge to verify it matches.
-
 ---
 
 ## Testing Checklist
 
-1. **Auth page loads** — Visit `/auth/flipswitch?callback_url=http://localhost:9999/callback&code_challenge=test&code_challenge_method=S256`
-   - Shows login if not authenticated
-   - Redirects to callback_url with code if authenticated
-2. **Token exchange works** — POST to `/api/auth/flipswitch/exchange` with valid code and verifier
-   - Returns an OpenRouter API key
-   - Key works for completions (test with `curl https://openrouter.ai/api/v1/auth/key -H "Authorization: Bearer sk-or-..."`)
-3. **Duplicate login** — Running `flipswitch login` again revokes the old key and provisions a new one
-4. **Key revocation** — POST to `/api/auth/flipswitch/revoke` deletes the key on OpenRouter
-5. **Spending limit** — Provisioned key has the configured limit (check OpenRouter dashboard)
-6. **Expired code** — Auth codes older than 60 seconds are rejected
+1. **Auth flow** — `flipswitch login` opens browser, authenticates, returns a valid OpenRouter API key
+2. **Key reuse** — Logging in on a second device returns the same key (not a new one)
+3. **Credit limits** — OR key limit matches `user_credits / (1 + margin)`
+4. **Limit enforcement** — When credits run out, OpenRouter returns 402 and Claude Code shows an error
+5. **Credit purchase** — Buying credits on Vendo increases the OR key limit
+6. **Key revocation** — `flipswitch logout` revokes the key, subsequent requests fail
+7. **Margin math** — Verify Vendo collects more than it pays OpenRouter
 
 ---
 
 ## Optional Enhancements
 
-- **Usage dashboard** — Fetch usage stats per key via `GET https://openrouter.ai/api/v1/keys` and surface in Vendo's UI
-- **Custom limits** — Let users upgrade their spending limit through Vendo (paid tier)
-- **Key rotation** — Automatically rotate keys on a schedule using a cron job
-- **Webhooks** — OpenRouter may support webhooks for budget alerts; integrate with Vendo notifications
+- **Usage dashboard** — Query OpenRouter's per-key usage API and surface it in the Vendo UI
+- **Low balance alerts** — Notify users when their OR key is near its limit
+- **Tiered margins** — Lower margin for higher-volume users
+- **Free trial** — Set a small initial credit limit (e.g., $1) for new signups
+- **Referral tracking** — Add `?ref=` param support in the auth flow for growth tracking
+- **Auto-top-up** — Let users configure automatic credit purchases when balance is low

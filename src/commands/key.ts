@@ -1,6 +1,5 @@
 import { readConfig, writeConfig } from "../lib/config.js";
 import { validateApiKey } from "../lib/openrouter.js";
-import { enableRouting } from "./on.js";
 import * as log from "../lib/logger.js";
 
 export async function keyCommand(apiKey: string): Promise<void> {
@@ -25,9 +24,6 @@ export async function keyCommand(apiKey: string): Promise<void> {
   config.vendoUserId = null;
   writeConfig(config);
 
-  // Auto-enable routing
-  enableRouting();
-
-  log.success("Flipswitch is ON. Claude Code will route through OpenRouter.");
-  log.info("Restart any running Claude Code sessions for changes to take effect.");
+  log.success("API key stored.");
+  log.info("Run `flipswitch on` to start routing Claude Code through OpenRouter.");
 }

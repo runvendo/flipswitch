@@ -81,7 +81,8 @@ function startCallbackServer(
 }
 
 /**
- * Exchange an auth code for a managed OpenRouter API key via Vendo.
+ * Exchange an auth code for an OpenRouter API key provisioned by Vendo.
+ * Vendo creates a management key with a credit limit on their OR account.
  */
 async function exchangeCode(
   code: string,
@@ -111,7 +112,7 @@ function getRandomPort(): number {
 
 /**
  * Perform the full Vendo login flow.
- * Opens browser, waits for callback, exchanges code for API key.
+ * Opens browser, waits for callback, exchanges code for an OpenRouter API key.
  */
 export async function performLogin(): Promise<{
   apiKey: string;
@@ -136,7 +137,7 @@ export async function performLogin(): Promise<{
 }
 
 /**
- * Revoke the user's managed key on Vendo.
+ * Revoke the user's API key on Vendo (which revokes the OpenRouter management key).
  */
 export async function revokeKey(vendoUserId: string): Promise<void> {
   try {
