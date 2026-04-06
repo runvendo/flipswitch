@@ -15,6 +15,7 @@ function defaultConfig(): FlipswitchConfig {
     vendoUserId: null,
     enabled: false,
     modelMappings: {},
+    activeProfile: null,
     managedEnvVars: [],
   };
 }

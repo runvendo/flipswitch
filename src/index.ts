@@ -8,6 +8,7 @@ import { offCommand } from "./commands/off.js";
 import { statusCommand } from "./commands/status.js";
 import { modelCommand } from "./commands/model.js";
 import { modelsCommand } from "./commands/models.js";
+import { profileCommand } from "./commands/profile.js";
 import { loginCommand } from "./commands/login.js";
 import { logoutCommand } from "./commands/logout.js";
 
@@ -76,6 +77,14 @@ program
   .description("List available models on OpenRouter")
   .option("--all", "Show all models, not just popular ones")
   .action(modelsCommand);
+
+program
+  .command("profile [name]")
+  .description("Apply a preset profile (max, speed, budget, free, default)")
+  .option("--list", "List available profiles")
+  .option("--reset", "Reset all model slots to defaults")
+  .option("--local", "Apply to current project only")
+  .action(profileCommand);
 
 program
   .command("key <api-key>")

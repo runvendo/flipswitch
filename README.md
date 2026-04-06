@@ -1,6 +1,8 @@
-# flipswitch
+<p align="center">
+  <img src="assets/banner-option-a.png" alt="flipswitch by Vendo" width="600" />
+</p>
 
-Use Claude Code with any model. No Anthropic subscription needed.
+<p align="center">Use Claude Code with any model. No Anthropic subscription needed.</p>
 
 ```bash
 npm install -g flipswitch
@@ -8,13 +10,14 @@ flipswitch        # sign in with Vendo
 flipswitch on     # enable routing
 ```
 
-Sign in with [Vendo](https://vendo.run), flip the switch, restart Claude Code. You're routed through Vendo with access to 400+ models via OpenRouter.
+Sign in with [Vendo](https://vendo.run), flip the switch, restart Claude Code. You're routed through Vendo with access to 300+ models via OpenRouter.
 
 ## Why
 
 - **No Anthropic subscription required.** Claude Code's CLI is free to install. Flipswitch routes API calls through [Vendo](https://vendo.run) — you never need a Pro, Max, or Team plan.
 - **Dead simple.** Sign in with Vendo, run `flipswitch on`, done. No config files to edit, no env vars to manage, no proxy servers.
-- **Access 400+ models.** Remap Claude Code's model slots to any model on OpenRouter — GPT-4o, Gemini 2.5 Pro, DeepSeek, Llama, and more.
+- **Access 300+ models.** Remap Claude Code's model slots to any model on OpenRouter — Gemini, GPT, DeepSeek, Llama, Devstral, and more.
+- **Profiles.** Switch between curated open-source model presets — `max`, `speed`, `budget`, or `free`.
 - **Pay as you go.** With Vendo, you get a managed OpenRouter API key with built-in credit limits. No surprise bills.
 
 ## Install
@@ -77,20 +80,44 @@ flipswitch on
 | `flipswitch on` | Enable OpenRouter routing |
 | `flipswitch off` | Disable routing, revert to direct Anthropic |
 | `flipswitch status` | Show current configuration |
+| `flipswitch profile <name>` | Apply a preset model profile |
 | `flipswitch model <slot> <id>` | Remap a model slot to any OpenRouter model |
 | `flipswitch models` | Browse available models |
 | `flipswitch key <key>` | Use your own OpenRouter key instead of Vendo |
 
+## Profiles
+
+Switch all three model slots at once with a single command. All profiles use open-source models:
+
+```bash
+flipswitch profile max      # open-source frontier
+flipswitch profile speed    # fast iteration
+flipswitch profile budget   # cheapest that still codes well
+flipswitch profile free     # zero cost, rate-limited
+flipswitch profile default  # reset to standard Claude models
+```
+
+| Profile | Sonnet slot | Opus slot | Haiku slot | Cost |
+|---------|-------------|-----------|------------|------|
+| **max** | MiniMax M2.5 (80% SWE-bench) | GLM-5 (96% SWE-bench) | Qwen3 Coder (480B MoE) | $0.22–$2.30/M |
+| **speed** | DeepSeek V3.2 | Qwen 3.6 Plus (1M ctx) | Gemma 4 31B | $0.14–$1/M |
+| **budget** | Qwen3 Coder Next | DeepSeek V3.2 | Devstral Small | $0.10–$0.75/M |
+| **free** | Qwen3 Coder | Qwen 3.6 Plus (1M ctx) | Nemotron 3 Super (262K) | $0 |
+
+Free models are subsidized by OpenRouter and community inference providers — genuinely $0, no credit card needed. Rate limits: ~20 req/min, ~200 req/day.
+
+Profiles set all three slots at once. You can still override individual slots with `flipswitch model` after applying a profile.
+
 ## Model Remapping
 
-By default, Claude Code uses the same Claude models via OpenRouter. You can remap any slot to a different model:
+You can also remap individual slots to any of the 300+ models on OpenRouter:
 
 ```bash
 # Route Sonnet requests to Gemini 2.5 Pro
 flipswitch model sonnet google/gemini-2.5-pro
 
 # Route Haiku requests to a cheaper model
-flipswitch model haiku meta-llama/llama-4-scout
+flipswitch model haiku deepseek/deepseek-v3.2
 
 # See what's available
 flipswitch models
@@ -123,7 +150,7 @@ Both Vendo and direct key users route through OpenRouter's Anthropic-compatible 
 No. Flipswitch bypasses Anthropic entirely. You only need the free Claude Code CLI and a Vendo account (or your own OpenRouter key).
 
 **Do I need to restart Claude Code?**
-Yes, after `flipswitch on`, `flipswitch off`, or `flipswitch model`. Claude Code reads settings at startup.
+Yes, after `flipswitch on`, `flipswitch off`, `flipswitch profile`, or `flipswitch model`. Claude Code reads settings at startup.
 
 **What does Vendo do?**
 [Vendo](https://vendo.run) provisions a managed OpenRouter API key with built-in credit limits. You sign in once, buy credits on Vendo, and flipswitch handles the rest. No OpenRouter account needed.

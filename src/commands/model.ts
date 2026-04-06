@@ -21,6 +21,7 @@ export async function modelCommand(
 
   if (options.reset) {
     delete config.modelMappings[typedSlot];
+    config.activeProfile = null;
 
     if (local) {
       const localState = readLocalState();
@@ -49,6 +50,7 @@ export async function modelCommand(
   }
 
   config.modelMappings[typedSlot] = modelId;
+  config.activeProfile = null; // manual override clears profile
 
   if (local) {
     const localState = readLocalState();

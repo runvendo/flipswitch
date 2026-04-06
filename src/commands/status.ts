@@ -2,7 +2,7 @@ import chalk from "chalk";
 import { readConfig, getConfigPath } from "../lib/config.js";
 import { getEnvVars, getSettingsPath } from "../lib/claude-settings.js";
 import { readLocalState } from "../lib/local-state.js";
-import { MODEL_SLOTS, MODEL_ENV_VARS } from "../types.js";
+import { MODEL_SLOTS, MODEL_ENV_VARS, PROFILES } from "../types.js";
 import * as log from "../lib/logger.js";
 
 export async function statusCommand(options?: { local?: boolean }): Promise<void> {
@@ -60,6 +60,12 @@ export async function statusCommand(options?: { local?: boolean }): Promise<void
         ? "Direct OpenRouter key"
         : chalk.dim("Not configured");
   log.label("Auth:     ", authMode);
+
+  // Active profile
+  if (config.activeProfile && PROFILES[config.activeProfile]) {
+    const p = PROFILES[config.activeProfile];
+    log.label("Profile:  ", chalk.cyan(p.name) + chalk.dim(` — ${p.description}`));
+  }
 
   // Model mappings
   console.log();
