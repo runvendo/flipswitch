@@ -87,8 +87,8 @@ function startCallbackServer(
 async function exchangeCode(
   code: string,
   codeVerifier: string
-): Promise<{ apiKey: string; userId: string }> {
-  const res = await fetch(`${VENDO_BASE_URL}/api/auth/flipswitch/exchange`, {
+): Promise<{ apiKey: string; userId: string; balanceUsd: number }> {
+  const res = await fetch(`${VENDO_BASE_URL}/api/cli/exchange`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ code, code_verifier: codeVerifier }),
@@ -99,8 +99,16 @@ async function exchangeCode(
     throw new Error(`Token exchange failed (${res.status}): ${body}`);
   }
 
-  const data = (await res.json()) as { api_key: string; user_id: string };
-  return { apiKey: data.api_key, userId: data.user_id };
+  const data = (await res.json()) as {
+    api_key: string;
+    user_id: string;
+    balance_usd: number;
+  };
+  return {
+    apiKey: data.api_key,
+    userId: data.user_id,
+    balanceUsd: data.balance_usd ?? 0,
+  };
 }
 
 /**
@@ -117,6 +125,7 @@ function getRandomPort(): number {
 export async function performLogin(): Promise<{
   apiKey: string;
   userId: string;
+  balanceUsd: number;
 }> {
   const codeVerifier = generateCodeVerifier();
   const codeChallenge = computeCodeChallenge(codeVerifier);
@@ -125,7 +134,8 @@ export async function performLogin(): Promise<{
 
   const { promise, server } = startCallbackServer(port, 120_000);
 
-  const authUrl = new URL(`${VENDO_BASE_URL}/auth/flipswitch`);
+  const authUrl = new URL(`${VENDO_BASE_URL}/authorize`);
+  authUrl.searchParams.set("app", "flipswitch");
   authUrl.searchParams.set("callback_url", callbackUrl);
   authUrl.searchParams.set("code_challenge", codeChallenge);
   authUrl.searchParams.set("code_challenge_method", "S256");
@@ -139,12 +149,14 @@ export async function performLogin(): Promise<{
 /**
  * Revoke the user's API key on Vendo (which revokes the OpenRouter management key).
  */
-export async function revokeKey(vendoUserId: string): Promise<void> {
+export async function revokeKey(apiKey: string): Promise<void> {
   try {
-    await fetch(`${VENDO_BASE_URL}/api/auth/flipswitch/revoke`, {
+    await fetch(`${VENDO_BASE_URL}/api/cli/revoke`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: vendoUserId }),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
     });
   } catch {
     // Best effort — don't fail logout if Vendo is unreachable

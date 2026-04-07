@@ -99,7 +99,7 @@ flipswitch profile default  # reset to standard Claude models
 
 | Profile | Sonnet slot | Opus slot | Haiku slot | Cost |
 |---------|-------------|-----------|------------|------|
-| **max** | MiniMax M2.5 (80% SWE-bench) | GLM-5 (96% SWE-bench) | Qwen3 Coder (480B MoE) | $0.22–$2.30/M |
+| **max** | MiniMax M2.5 (80% SWE-bench) | GLM-5 (78% SWE-bench) | Qwen3 Coder (480B MoE) | $0.22–$2.30/M |
 | **speed** | DeepSeek V3.2 | Qwen 3.6 Plus (1M ctx) | Gemma 4 31B | $0.14–$1/M |
 | **budget** | Qwen3 Coder Next | DeepSeek V3.2 | Devstral Small | $0.10–$0.75/M |
 | **free** | Qwen3 Coder | Qwen 3.6 Plus (1M ctx) | Nemotron 3 Super (262K) | $0 |
@@ -107,6 +107,14 @@ flipswitch profile default  # reset to standard Claude models
 Free models are subsidized by OpenRouter and community inference providers — genuinely $0, no credit card needed. Rate limits: ~20 req/min, ~200 req/day.
 
 Profiles set all three slots at once. You can still override individual slots with `flipswitch model` after applying a profile.
+
+### How do these compare to Claude?
+
+In [a real-world test of 33 models](https://akitaonrails.com/en/2026/04/05/testing-llms-open-source-and-commercial-can-anyone-beat-claude-opus/), only 4 produced working code — Claude Opus, Claude Sonnet, GLM-5, and GLM-5.1. The rest hallucinated APIs that don't exist. MiniMax M2.5 scores 80% on SWE-bench (nearly tied with Opus at 81%) but still invented fake methods in practice.
+
+Open-source models handle ~80% of routine coding — single-file edits, well-known frameworks, quick iterations. They struggle with long agentic chains, niche libraries, and multi-file refactors.
+
+See **[docs/open-source-models.md](docs/open-source-models.md)** for the full breakdown: tier list, what goes wrong, cost per session, and every model's real-world track record.
 
 ## Model Remapping
 

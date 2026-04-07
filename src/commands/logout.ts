@@ -17,9 +17,9 @@ export async function logoutCommand(): Promise<void> {
   }
 
   // Revoke the managed key on Vendo (best effort)
-  if (config.authMode === "vendo" && config.vendoUserId) {
+  if (config.authMode === "vendo" && config.apiKey) {
     const spin = log.spinner("Revoking key...");
-    await revokeKey(config.vendoUserId);
+    await revokeKey(config.apiKey);
     spin.stop();
   }
 
