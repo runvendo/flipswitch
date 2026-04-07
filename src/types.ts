@@ -40,8 +40,10 @@ export const MODEL_ENV_VARS: Record<ModelSlot, string> = {
 
 export const BASE_ENV_VARS = [
   "ANTHROPIC_BASE_URL",
-  "ANTHROPIC_AUTH_TOKEN",
   "ANTHROPIC_API_KEY",
+  "ANTHROPIC_AUTH_TOKEN",
+  "DISABLE_TELEMETRY",
+  "DISABLE_COST_WARNINGS",
 ] as const;
 
 export const OPENROUTER_BASE_URL = "https://openrouter.ai/api";

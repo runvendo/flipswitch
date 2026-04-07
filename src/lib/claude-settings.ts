@@ -27,11 +27,27 @@ function readSettingsAt(path: string): ClaudeSettings {
   }
 }
 
+/**
+ * Fix known schema issues that cause Claude Code to reject the entire file.
+ * e.g. enabledPlugins must be a record, not an array.
+ */
+function sanitizeSettings(settings: ClaudeSettings): ClaudeSettings {
+  if (Array.isArray(settings.enabledPlugins)) {
+    const record: Record<string, boolean> = {};
+    for (const plugin of settings.enabledPlugins as string[]) {
+      record[plugin] = true;
+    }
+    settings.enabledPlugins = record;
+  }
+  return settings;
+}
+
 function writeSettingsAt(path: string, settings: ClaudeSettings): void {
   const dir = join(path, "..");
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
   }
+  sanitizeSettings(settings);
   const tmpPath = path + "." + randomBytes(4).toString("hex") + ".tmp";
   writeFileSync(tmpPath, JSON.stringify(settings, null, 2) + "\n", "utf-8");
   renameSync(tmpPath, path);
