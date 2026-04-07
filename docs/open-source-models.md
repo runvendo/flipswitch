@@ -25,8 +25,8 @@ Based on real-world testing with Claude Code, not just benchmarks.
 
 | Model | OpenRouter ID | What it costs | What people say |
 |-------|--------------|---------------|-----------------|
-| **GLM-5.1** | `z-ai/glm-5` | $0.72/$2.30 per 1M tokens | 24 tests, correct APIs, slightly slower. 89% cheaper than Opus. Reddit: "high in ratings but really bad for IaC." Inconsistent across domains. |
-| **GLM-5** | `z-ai/glm-5` | $0.72/$2.30 per 1M tokens | Working code, 7 tests, missing features. Best open-source value for complex tasks. |
+| **GLM-5.1** | Not on OpenRouter yet | ~$0.72/$2.30 per 1M tokens | 24 tests, correct APIs, 94.6% of Opus performance. Only available via Z.ai's Coding Plan ($3/mo). **Watch for this one** — when it hits OpenRouter, it's the best open-source pick. |
+| **GLM-5** | `z-ai/glm-5` | $0.72/$2.30 per 1M tokens | Working code, 7 tests, missing features. Reddit: "high in ratings but really bad for IaC." Inconsistent across domains, but one of only 4 models to produce working code in real-world testing. |
 
 ### Tier 3 — Good benchmarks, real-world gaps
 
