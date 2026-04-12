@@ -49,7 +49,10 @@ function writeSettingsAt(path: string, settings: ClaudeSettings): void {
   }
   sanitizeSettings(settings);
   const tmpPath = path + "." + randomBytes(4).toString("hex") + ".tmp";
-  writeFileSync(tmpPath, JSON.stringify(settings, null, 2) + "\n", "utf-8");
+  writeFileSync(tmpPath, JSON.stringify(settings, null, 2) + "\n", {
+    encoding: "utf-8",
+    mode: 0o600,
+  });
   renameSync(tmpPath, path);
 }
 

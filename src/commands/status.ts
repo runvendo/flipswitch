@@ -28,11 +28,9 @@ export async function statusCommand(options?: { local?: boolean }): Promise<void
       for (const key of managedVars) {
         const val = envVars[key];
         const display =
-          key === "ANTHROPIC_AUTH_TOKEN" && val
+          (key === "ANTHROPIC_AUTH_TOKEN" || key === "ANTHROPIC_API_KEY") && val
             ? log.maskKey(val)
-            : key === "ANTHROPIC_API_KEY" && val === ""
-              ? chalk.dim("(empty)")
-              : val ?? chalk.dim("(not set)");
+            : val ?? chalk.dim("(not set)");
         console.log(`    ${key} = ${display}`);
       }
     } else {

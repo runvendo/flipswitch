@@ -22,3 +22,6 @@ coverage/
 
 # Claude
 .claude/
+
+# Flipswitch local state
+.flipswitch.json
