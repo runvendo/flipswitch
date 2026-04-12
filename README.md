@@ -5,7 +5,7 @@
 <p align="center">Use Claude Code with any model. No Anthropic subscription needed.</p>
 
 ```bash
-npm install -g flipswitch
+npm install -g @vendodev/flipswitch
 flipswitch        # sign in with Vendo
 flipswitch on     # enable routing
 ```
@@ -24,7 +24,7 @@ Sign in with [Vendo](https://vendo.run), flip the switch, restart Claude Code. Y
 
 ```bash
 # npm
-npm install -g flipswitch
+npm install -g @vendodev/flipswitch
 
 # Homebrew
 brew tap vendodev/tap

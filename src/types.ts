@@ -1,9 +1,12 @@
 export interface FlipswitchConfig {
   version: 1;
   authMode: "vendo" | "direct" | null;
-  /** OpenRouter API key — provisioned by Vendo or provided directly by user. */
+  /** API key — Vendo proxy key (vendo_sk_…) or raw OpenRouter key. */
   apiKey: string | null;
+  /** Base URL for the provider API (Vendo proxy or OpenRouter). */
+  baseUrl: string | null;
   vendoUserId: string | null;
+  vendoTenantId: string | null;
   enabled: boolean;
   modelMappings: {
     sonnet?: string;
@@ -47,8 +50,28 @@ export const BASE_ENV_VARS = [
 ] as const;
 
 export const OPENROUTER_BASE_URL = "https://openrouter.ai/api";
+export const VENDO_PROXY_URL = "https://openrouter-proxy.vendo.run";
 
-export const VENDO_BASE_URL = process.env.VENDO_URL ?? "https://vendo.run";
+/** Check whether a key is a Vendo-issued proxy key. */
+export function isVendoKey(key: string): boolean {
+  return key.startsWith("vendo_sk_");
+}
+
+function resolveVendoUrl(): string {
+  const override = process.env.VENDO_URL;
+  if (!override) return "https://vendo.run";
+  try {
+    const url = new URL(override);
+    if (url.protocol !== "https:" && url.hostname !== "localhost") {
+      return "https://vendo.run";
+    }
+    return url.origin;
+  } catch {
+    return "https://vendo.run";
+  }
+}
+
+export const VENDO_BASE_URL = resolveVendoUrl();
 
 // ── Profiles ────────────────────────────────────────────────────────────
 

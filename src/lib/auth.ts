@@ -80,14 +80,22 @@ function startCallbackServer(
   return { promise, server };
 }
 
+export interface ExchangeResult {
+  apiKey: string;
+  baseUrl: string;
+  userId: string;
+  tenantId: string;
+  balanceUsd: number;
+}
+
 /**
- * Exchange an auth code for an OpenRouter API key provisioned by Vendo.
- * Vendo creates a management key with a credit limit on their OR account.
+ * Exchange an auth code for a Vendo proxy API key.
+ * The returned base_url points to the Vendo proxy that forwards to OpenRouter.
  */
 async function exchangeCode(
   code: string,
   codeVerifier: string
-): Promise<{ apiKey: string; userId: string; balanceUsd: number }> {
+): Promise<ExchangeResult> {
   const res = await fetch(`${VENDO_BASE_URL}/api/cli/exchange`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -101,12 +109,16 @@ async function exchangeCode(
 
   const data = (await res.json()) as {
     api_key: string;
+    base_url: string;
     user_id: string;
+    tenant_id: string;
     balance_usd: number;
   };
   return {
     apiKey: data.api_key,
+    baseUrl: data.base_url,
     userId: data.user_id,
+    tenantId: data.tenant_id,
     balanceUsd: data.balance_usd ?? 0,
   };
 }
@@ -120,13 +132,9 @@ function getRandomPort(): number {
 
 /**
  * Perform the full Vendo login flow.
- * Opens browser, waits for callback, exchanges code for an OpenRouter API key.
+ * Opens browser, waits for callback, exchanges code for a Vendo proxy key.
  */
-export async function performLogin(): Promise<{
-  apiKey: string;
-  userId: string;
-  balanceUsd: number;
-}> {
+export async function performLogin(): Promise<ExchangeResult> {
   const codeVerifier = generateCodeVerifier();
   const codeChallenge = computeCodeChallenge(codeVerifier);
   const port = getRandomPort();

@@ -1,6 +1,5 @@
 import { readConfig, writeConfig } from "../lib/config.js";
 import { performLogin } from "../lib/auth.js";
-import { enableRouting } from "./on.js";
 import { VENDO_BASE_URL } from "../types.js";
 import * as log from "../lib/logger.js";
 
@@ -24,12 +23,10 @@ export async function loginCommand(): Promise<void> {
   const config = readConfig();
   config.authMode = "vendo";
   config.apiKey = result.apiKey;
+  config.baseUrl = result.baseUrl;
   config.vendoUserId = result.userId;
+  config.vendoTenantId = result.tenantId;
   writeConfig(config);
-
-  // Auto-enable routing so the user doesn't need a separate step
-  enableRouting();
-  log.success("Claude Code routing enabled");
 
   // Show balance and funding info
   console.log();
@@ -43,7 +40,5 @@ export async function loginCommand(): Promise<void> {
   }
 
   console.log();
-  log.info(
-    "Restart any running Claude Code sessions for changes to take effect."
-  );
+  log.info("Run `flipswitch on` to start routing Claude Code through Vendo.");
 }

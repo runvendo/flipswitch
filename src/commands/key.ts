@@ -21,7 +21,9 @@ export async function keyCommand(apiKey: string): Promise<void> {
   const config = readConfig();
   config.authMode = "direct";
   config.apiKey = apiKey;
+  config.baseUrl = null;
   config.vendoUserId = null;
+  config.vendoTenantId = null;
   writeConfig(config);
 
   log.success("API key stored.");

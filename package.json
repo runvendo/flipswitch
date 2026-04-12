@@ -1,5 +1,5 @@
 {
-  "name": "flipswitch",
+  "name": "@vendodev/flipswitch",
   "version": "0.1.0",
   "description": "Route Claude Code through OpenRouter with one command",
   "type": "module",

@@ -26,7 +26,9 @@ export async function logoutCommand(): Promise<void> {
   // Clear all auth state
   config.authMode = null;
   config.apiKey = null;
+  config.baseUrl = null;
   config.vendoUserId = null;
+  config.vendoTenantId = null;
   config.enabled = false;
   config.managedEnvVars = [];
   writeConfig(config);

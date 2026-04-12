@@ -11,6 +11,7 @@ import { modelsCommand } from "./commands/models.js";
 import { profileCommand } from "./commands/profile.js";
 import { loginCommand } from "./commands/login.js";
 import { logoutCommand } from "./commands/logout.js";
+import { usageCommand } from "./commands/usage.js";
 
 const program = new Command();
 
@@ -85,6 +86,11 @@ program
   .option("--reset", "Reset all model slots to defaults")
   .option("--local", "Apply to current project only")
   .action(profileCommand);
+
+program
+  .command("usage")
+  .description("Show current usage and remaining credits")
+  .action(usageCommand);
 
 program
   .command("key <api-key>")
